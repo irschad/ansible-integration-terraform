@@ -130,30 +130,38 @@ Copies the Docker Compose configuration file, logs into Docker Hub, and starts c
    ```
 
 2. **EC2 Instance Provisioning**:
-   ```hcl
-  resource "aws_instance" "app-server" {
-    ami           = data.aws_ami.latest-amazon-linux-image.id
-    instance_type = var.instance_type
-  
-    subnet_id              = aws_subnet.myapp-subnet-1.id
-    vpc_security_group_ids = [aws_default_security_group.default-sg.id]
-    availability_zone      = var.avail_zone
-  
-    associate_public_ip_address = true
-    key_name                    = aws_key_pair.ssh-key.key_name
-  
-    tags = {
-      Name : "${var.env_prefix}-server"
+    ```hcl
+    resource "aws_instance" "app-server" {
+      ami           = data.aws_ami.latest-amazon-linux-image.id
+      instance_type = var.instance_type
+    
+      subnet_id              = aws_subnet.myapp-subnet-1.id
+      vpc_security_group_ids = [aws_default_security_group.default-sg.id]
+      availability_zone      = var.avail_zone
+    
+      associate_public_ip_address = true
+      key_name                    = aws_key_pair.ssh-key.key_name
+    
+      tags = {
+        Name : "${var.env_prefix}-server"
+      }
     }
-  }
-  
-  resource "null_resource" "configure_server" {
-    provisioner "local-exec" {
-      working_dir = "/Users/irschad/ansible"
-      command     = "ansible-playbook --inventory ${aws_instance.app-server.public_ip}, --private-key ${var.ssh_private_key} --user ec2-user deploy-docker-new-user.yaml"
+    
+    resource "null_resource" "configure_server" {
+      provisioner "local-exec" {
+        working_dir = "/Users/irschad/ansible"
+        command     = "ansible-playbook --inventory ${aws_instance.app-server.public_ip}, --private-key ${var.ssh_private_key} --user ec2-user deploy-docker-new-user.yaml"
+      }
     }
-  }
    ```
+The `provisioner` block within the `null_resource` configuration bridges Terraform and Ansible, ensuring post-provisioning tasks are automated. Specifically:
+
+- **Integration**: After Terraform creates the EC2 instance, it uses `local-exec` to execute a command on the local machine.
+- **Command**: Runs the Ansible playbook (`deploy-docker-new-user.yaml`) to configure the server.
+- **Dynamic Values**: Utilizes Terraform variables, such as `aws_instance.app-server.public_ip` and `var.ssh_private_key`, to adapt to the created infrastructure.
+- **Working Directory**: Ensures Ansible is executed in the correct directory where the playbook reside
+
+This approach allows the seamless execution of Ansible playbook immediately after Terraform finishes provisioning.
 
 ### Timing Issue Fix
 To handle the potential timing issue, the `wait_for` module in the Ansible playbook ensures the EC2 instance is ready before proceeding.
